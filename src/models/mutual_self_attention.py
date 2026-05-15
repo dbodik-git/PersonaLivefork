@@ -149,12 +149,6 @@ class ReferenceAttentionControl:
                         **cross_attention_kwargs,
                     )
                 if MODE == "read":
-                    kv_cache = norm_hidden_states.clone()
-                    kv_cache = rearrange(
-                        kv_cache, "(b t) l c -> b t l c", t=video_length
-                    )
-                    self.kv_cache = kv_cache[:,:2,:,:]
-                    
                     bank_fea = [
                         rearrange(
                             d.unsqueeze(1).repeat(1, video_length, 1, 1),
@@ -326,9 +320,7 @@ class ReferenceAttentionControl:
                     )
 
                 module.bank = []
-                if(self.cache_kv):
-                    module.kv_bank = None
-                    module.kv_cache = None
+                module.kv_bank = None
                 module.attn_weight = float(i) / float(len(attn_modules))
 
     def update(self, writer, dtype=torch.float16, drop_ratio=0.):
@@ -462,4 +454,3 @@ class ReferenceAttentionControl:
                 r.bank.clear()
                 if self.cache_kv:
                     r.kv_bank=None
-                    r.kv_cache=None

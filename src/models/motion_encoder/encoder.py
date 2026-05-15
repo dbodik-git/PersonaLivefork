@@ -34,8 +34,16 @@ class MotEncoder(ModelMixin):
 
     def forward(self, x):
         x = x.to(self.dtype)
-        latent = self.model(rearrange(x, "b c f h w -> (b f) c h w"))
+        if x.ndim == 5:
+            latent = self.model(rearrange(x, "b c f h w -> (b f) c h w"))
+        else:
+            latent = self.model(x)
+        if self.out_bn is not None:
+            latent = self.out_bn(latent.unsqueeze(-1)).squeeze(-1)
+        if self.out_drop is not None:
+            latent = self.out_drop(latent)
         latent = self.final_proj(latent)
         latent = rearrange(latent, "b (l c) -> b l c", c=self.out_ch) + self.pe
-        latent = rearrange(latent, "(b f) l c -> b f l c", f=x.shape[2])
+        if x.ndim == 5:
+            latent = rearrange(latent, "(b f) l c -> b f l c", f=x.shape[2])
         return latent

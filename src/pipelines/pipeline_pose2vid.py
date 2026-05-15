@@ -456,6 +456,7 @@ class Pose2VideoPipeline(DiffusionPipeline):
         temporal_adaptive_step = 4,
         temporal_kv_cache=True,
         init_latents=None,
+        timesteps_list=None,
         **kwargs,
     ):
         assert num_inference_steps % temporal_adaptive_step == 0, "temporal_adaptive_step should be divisor of num_inference_steps"
@@ -469,8 +470,13 @@ class Pose2VideoPipeline(DiffusionPipeline):
         do_classifier_free_guidance = guidance_scale > 1.0
 
         # Prepare timesteps
-        timesteps = torch.tensor([999, 666, 333, 0], device=device).long()
-        self.scheduler.set_step_length(333)
+        if timesteps_list is not None:
+            assert len(timesteps_list) == num_inference_steps, 'len(timesteps_list) != num_inference_steps'
+            timesteps = torch.tensor(timesteps_list, device=device).long()
+            self.scheduler.set_step_length(timesteps_list[0]-timesteps_list[1])
+        else:
+            timesteps = torch.tensor([999, 666, 333, 0], device=device).long()
+            self.scheduler.set_step_length(333)
         jump = num_inference_steps // temporal_adaptive_step
         windows = video_length // temporal_window_size
 
@@ -606,7 +612,7 @@ class Pose2VideoPipeline(DiffusionPipeline):
                 pose_fea = pose_feas[:, :, l:r]
 
                 add_flag = False
-                if l > temporal_adaptive_step * temporal_window_size * 2 and motion_bank.shape[1] < 4:
+                if l > temporal_adaptive_step * temporal_window_size * 2 and motion_bank.shape[1] < 4 and temporal_kv_cache:
                     add_flag, motion_bank = self.calculate_dis(motion_bank, motion_hidden_state, threshold=17.)
                 
                 if do_classifier_free_guidance:
@@ -896,7 +902,7 @@ class Pose2VideoPipeline_Stream(Pose2VideoPipeline):
                     pose_feas = torch.cat([pose_feas[:,:,temporal_window_size:], pose_fea], dim=2)
                 
                 if l > temporal_adaptive_step * temporal_window_size * 2 and motion_bank.shape[1] < 4:
-                    add_flag, motion_bank = self.calculate_dis(motion_bank, motion_hidden_state, threshold=17.)
+                    add_flag, motion_bank = self.calculate_dis(motion_bank, motion_hidden_states, threshold=17.)
                 
                 latents = ref_image_latents.unsqueeze(2).repeat(1, 1, temporal_window_size, 1, 1)
                 noise = torch.randn_like(latents)

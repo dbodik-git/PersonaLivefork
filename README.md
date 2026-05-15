@@ -164,6 +164,130 @@ Then open `http://0.0.0.0:7860` in your browser. (*If `http://0.0.0.0:7860` does
 1. Lower the "Driving FPS" setting in the WebUI to reduce the computational workload.
 2. You can increase the multiplier (e.g., set to `num_frames_needed * 4` or higher) to better match your device's inference speed. https://github.com/GVCLab/PersonaLive/blob/6953d1a8b409f360a3ee1d7325093622b29f1e22/webcam/util.py#L73
 
+## 🚄 Model Training
+
+PersonaLive training is organized into three stages. Approximate training time on 8x H100 with default configs: Stage 1 ~13h, Stage 2 ~15h, Stage 3 ~20h.
+
+### 1️⃣ Environment setup
+Install base dependencies first (see installation section), then install training-only packages:
+
+```bash
+pip install -r requirements_train.txt
+```
+
+If you use multi-GPU or multi-node training, configure Accelerate once before launching training:
+
+```bash
+accelerate config
+```
+
+### 2️⃣ Data preparation
+Your dataset should contain a `videos` directory and a matching `boxes` directory:
+
+```text
+Datasets
+├── VFHQ
+│   ├── videos
+│   │   ├── example1.mp4
+│   │   ├── example2.mp4
+│   │   └── ...
+│   └── boxes
+│       ├── example1.pt
+│       ├── example2.pt
+│       └── ...
+└── ...
+```
+
+Preprocessing example:
+
+```bash
+# 1) Extract face / eye / mouth boxes from each frame
+python tools/get_boxes.py --video_dir ./Datasets/VFHQ/videos --save_dir ./Datasets/VFHQ/boxes --workers 8
+
+# 2) Generate meta json: [{"video_path": ".../videos/xxx.mp4"}, ...]
+python tools/extract_meta_info.py --root_path ./Datasets/VFHQ --dataset_name VFHQ
+```
+
+Then set `data.meta_paths` in each training config:
+
+```yaml
+data:
+  meta_paths:
+    - "./data/VFHQ_meta.json"
+    - "./data/OtherDataset_meta.json"
+```
+
+### 3️⃣ Download weights
+Download the training initialization weights: [X-NeMo](https://drive.google.com/drive/folders/1RdjBYYbstO7SOchDg7oimoAwu03g_-mI), [pose_guider](https://drive.google.com/drive/folders/1F6lyYfC5RijdS2SmvTct_8L9HZweV4nF?usp=sharing), and [stylegan2_discriminator](https://drive.google.com/drive/folders/1F6lyYfC5RijdS2SmvTct_8L9HZweV4nF?usp=sharing).
+
+```text
+pretrained_weights
+├── xnemo
+│   ├── xnemo_motion_encoder.pth
+│   ├── xnemo_denoising_unet.pth
+│   ├── xnemo_reference_unet.pth
+│   └── xnemo_temporal_module.pth
+├── sd-vae-ft-mse
+│   ├── diffusion_pytorch_model.bin
+│   └── config.json
+├── sd-image-variations-diffusers
+│   ├── image_encoder
+│   │   ├── pytorch_model.bin
+│   │   └── config.json
+│   ├── unet
+│   │   ├── diffusion_pytorch_model.bin
+│   │   └── config.json
+│   └── model_index.json
+├── pose_guider.pth
+└── stylegan2_discriminator_ffhq512.pth
+```
+
+### 4️⃣ Training workflow
+
+#### Stage 1: Image-level warm-up
+Run:
+```bash
+accelerate launch train_stage1.py --config ./configs/train/personalive_stage1.yaml
+```
+
+Default output folder: `./exp_output/personalive_stage1/`
+
+#### Stage 2: Image-level adversarial refinement
+
+Update `configs/train/personalive_stage2.yaml` to point to Stage 1 outputs:
+```bash
+motion_encoder_path: './exp_output/personalive_stage1/motion_encoder-xxxxx.pth'
+denoising_unet_path: './exp_output/personalive_stage1/denoising_unet-xxxxx.pth'
+reference_unet_path: './exp_output/personalive_stage1/reference_unet-xxxxx.pth'
+pose_guider_path: './exp_output/personalive_stage1/pose_guider-xxxxx.pth'
+```
+
+Run:
+```bash
+accelerate launch train_stage2.py --config ./configs/train/personalive_stage2.yaml
+```
+
+Default output folder: `./exp_output/personalive_stage2/`
+
+#### Stage 3: Temporal module fine-tuning for streaming
+
+Update `configs/train/personalive_stage3.yaml` to point to Stage 2 outputs:
+
+```bash
+motion_encoder_path: './exp_output/personalive_stage2/motion_encoder-xxxxx.pth'
+denoising_unet_path: './exp_output/personalive_stage2/denoising_unet-xxxxx.pth'
+reference_unet_path: './exp_output/personalive_stage2/reference_unet-xxxxx.pth'
+pose_guider_path: './exp_output/personalive_stage2/pose_guider-xxxxx.pth'
+discriminator_path: './exp_output/personalive_stage2/discriminator-xxxxx.pth'
+```
+
+Run:
+```bash
+accelerate launch train_stage3.py --config ./configs/train/personalive_stage3.yaml
+```
+
+Default output folder: `./exp_output/personalive_stage3/`
+
 ## 📚 Community Contribution
 
 Special thanks to the community for providing helpful setups! 🥂

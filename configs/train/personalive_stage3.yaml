@@ -1,0 +1,62 @@
+data:
+  train_bs: 1
+  train_width: 512 
+  train_height: 512
+  meta_paths:
+    - "./data/VFHQ_example.json"
+  sample_rate: 4
+  n_sample_frames: 40
+  max_batch_frames: 10
+
+solver:
+  gradient_accumulation_steps: 1
+  mixed_precision: 'fp16'
+  enable_xformers_memory_efficient_attention: True
+  gradient_checkpointing: False 
+  max_train_steps: 10000
+  max_grad_norm: 1.0
+  # lr
+  learning_rate: 1e-5
+  scale_lr: False 
+  lr_warmup_steps: 1
+  lr_scheduler: 'constant'
+
+  # optimizer
+  use_8bit_adam: True 
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_weight_decay:  1.0e-2
+  adam_epsilon: 1.0e-8
+
+val:
+  validation_steps: 200
+
+temporal_window_size: 4
+temporal_adaptive_step: 4
+
+base_model_path: './pretrained_weights/sd-image-variations-diffusers'
+vae_model_path: './pretrained_weights/sd-vae-ft-mse'
+image_encoder_path: './pretrained_weights/sd-image-variations-diffusers/image_encoder'
+pose_encoder_path: './pretrained_weights/liveportrait/base_models/motion_extractor.pth'
+
+motion_encoder_path: './exp_output/personalive_stage2/motion_encoder-xxxxx.pth'
+denoising_unet_path: './exp_output/personalive_stage2/denoising_unet-xxxxx.pth'
+reference_unet_path: './exp_output/personalive_stage2/reference_unet-xxxxx.pth'
+pose_guider_path: './exp_output/personalive_stage2/pose_guider-xxxxx.pth'
+discriminator_path: './exp_output/personalive_stage2/discriminator-xxxxx.pth'
+
+temporal_module_path: './pretrained_weights/xnemo/xnemo_temporal_module.pth'
+
+weight_dtype: 'fp16'  # [fp16, fp32]
+uncond_ratio: 0.1
+noise_offset: 0.05
+window_size: 10
+snr_gamma: 5.0
+timesteps_list: [999, 666, 333, 0]
+
+seed: 12580
+resume_from_checkpoint: ''
+checkpointing_steps: 1000
+save_model_epoch_interval: 1
+exp_name: 'personalive_stage3'
+output_dir: './exp_output'

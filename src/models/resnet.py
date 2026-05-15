@@ -224,10 +224,10 @@ class ResnetBlock3D(nn.Module):
         if temb is not None:
             video_length = hidden_states.shape[2]
             temb = self.time_emb_proj(self.nonlinearity(temb))
-            temb = rearrange(temb, "(b f) c -> b c f", f=video_length)[:, :, :, None, None]
-        
-        # if temb is not None:
-        #     temb = self.time_emb_proj(self.nonlinearity(temb))[:, :, None, None, None]
+            if temb.shape[0] == hidden_states.shape[0] * video_length:
+                temb = rearrange(temb, "(b f) c -> b c f", f=video_length)[:, :, :, None, None]
+            else:
+                temb = temb[:, :, None, None, None]
 
         if temb is not None and self.time_embedding_norm == "default":
             hidden_states = hidden_states + temb
